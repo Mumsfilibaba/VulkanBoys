@@ -43,7 +43,7 @@
 
 Application* Application::s_pInstance = nullptr;
 
-constexpr bool	FORCE_RAY_TRACING_OFF	= false;
+constexpr bool	FORCE_RAY_TRACING_OFF	= true;
 constexpr bool	HIGH_RESOLUTION_SPHERE	= false;
 constexpr float CAMERA_PAN_LENGTH		= 10.0f;
 
@@ -492,6 +492,7 @@ void Application::update(double dt)
 		m_TestParameters.AverageFrametime = m_TestParameters.FrameTimeSum / m_TestParameters.FrameCount;
 		m_TestParameters.WorstFrametime = deltaTimeMS > m_TestParameters.WorstFrametime ? deltaTimeMS : m_TestParameters.WorstFrametime;
 		m_TestParameters.BestFrametime = deltaTimeMS < m_TestParameters.BestFrametime ? deltaTimeMS : m_TestParameters.BestFrametime;
+		m_TestParameters.Frametimes.push_back(deltaTimeMS);
 
 		auto& interpolatedPositionPT = m_pCameraPositionSpline->getTangent(m_CameraSplineTimer);
 		glm::vec3 position = interpolatedPositionPT.position;
@@ -622,6 +623,11 @@ void Application::renderUI(double dt)
 				m_TestParameters.WorstFrametime = std::numeric_limits<float>::min();
 				m_TestParameters.BestFrametime = std::numeric_limits<float>::max();
 				m_TestParameters.CurrentRound = 0;
+
+				constexpr const uint32_t FRAME_TIMES_RESERVED = 500 * 60 * 2 * 5;
+
+				m_TestParameters.Frametimes.clear();
+				m_TestParameters.Frametimes.reserve(FRAME_TIMES_RESERVED);
 			}
 
 			ImGui::Text("Previous Test: %s : %d ", m_TestParameters.TestName, m_TestParameters.NumRounds);
@@ -667,11 +673,18 @@ void Application::testFinished()
 
 	if (fileStream.is_open())
 	{
-		fileStream << "Avg. FT\tWorst FT\tBest FT\tFrame Count" << std::endl;
+		/*fileStream << "Avg. FT\tWorst FT\tBest FT\tFrame Count" << std::endl;
 		fileStream << m_TestParameters.AverageFrametime << "\t";
 		fileStream << m_TestParameters.WorstFrametime << "\t";
 		fileStream << m_TestParameters.BestFrametime << "\t";
-		fileStream << (uint32_t)m_TestParameters.FrameCount;
+		fileStream << (uint32_t)m_TestParameters.FrameCount;*/
+
+		fileStream << "Frame Times" << std::endl;
+
+		for (uint32_t i = 0; i < m_TestParameters.Frametimes.size(); i++)
+		{
+			fileStream << m_TestParameters.Frametimes[i] << std::endl;
+		}
 	}
 
 	fileStream.close();

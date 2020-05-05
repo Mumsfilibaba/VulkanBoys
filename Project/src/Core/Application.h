@@ -34,6 +34,7 @@ class Application : public CommonEventHandler
 		float AverageFrametime = 0.0f;
 		float BestFrametime = 0.0f;
 		float WorstFrametime = 0.0f;
+		std::vector<float> Frametimes;
 
 		char TestName[256] = "";
 		int NumRounds = 1;
