@@ -52,9 +52,7 @@ Application::Application()
 	m_pContext(nullptr),
 	m_pRenderingHandler(nullptr),
 	m_pMeshRenderer(nullptr),
-	m_pShadowMapRenderer(nullptr),
 	m_pRayTracingRenderer(nullptr),
-	m_pVolumetricLightRenderer(nullptr),
 	m_pImgui(nullptr),
 	m_pScene(nullptr),
 	m_pGunMesh(nullptr),
@@ -63,11 +61,6 @@ Application::Application()
 	m_Camera(),
 	m_IsRunning(false),
 	m_UpdateCamera(false),
-	m_pParticleTexture(nullptr),
-	m_pParticleEmitterHandler(nullptr),
-	m_NewEmitterInfo(),
-	m_CurrentEmitterIdx(0),
-	m_CreatingEmitter(false),
 	m_pCameraPositionSpline(nullptr),
 	m_pCameraDirectionSpline(nullptr),
 	m_CameraSplineTimer(0.0f),
@@ -131,15 +124,7 @@ void Application::init()
 	lightSetup.addPointLight(PointLight(glm::vec3( 0.0f, 4.0f, 0.0f), glm::vec4(100.0f)));
 	lightSetup.addPointLight(PointLight(glm::vec3( 0.0f, 4.0f, 0.0f), glm::vec4(100.0f)));
 
-	VolumetricLightSettings volumetricLightSettings = {
-		4.2f, 	// Scatter amount
-		0.2f 	// Particle G
-	};
-	glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.6f, -0.78f, -0.14f));
-	lightSetup.setDirectionalLight(DirectionalLight(volumetricLightSettings, sunDirection, {0.6f, 0.45f, 0.2f, 1.0f}));
-
 	// Setup renderers
-	//Setup Imgui
 	m_pImgui = m_pContext->createImgui();
 	m_pImgui->init();
 	m_pWindow->addEventHandler(m_pImgui);
@@ -147,32 +132,14 @@ void Application::init()
 	m_pMeshRenderer = m_pContext->createMeshRenderer(m_pRenderingHandler);
 	m_pMeshRenderer->init();
 
-	m_pShadowMapRenderer = m_pContext->createShadowMapRenderer(m_pRenderingHandler);
-	m_pShadowMapRenderer->init();
-
-	m_pParticleRenderer = m_pContext->createParticleRenderer(m_pRenderingHandler);
-	m_pParticleRenderer->init();
-
 	if (m_pContext->isRayTracingEnabled())
 	{
 		m_pRayTracingRenderer = m_pContext->createRayTracingRenderer(m_pRenderingHandler);
 		m_pRayTracingRenderer->init();
 	}
 
-	//Create particlehandler
-	m_pParticleEmitterHandler = m_pContext->createParticleEmitterHandler();
-	m_pParticleEmitterHandler->initialize(m_pContext, m_pRenderingHandler, &m_Camera);
-
-	// Create volumetric light renderer
-	m_pVolumetricLightRenderer = m_pContext->createVolumetricLightRenderer(m_pRenderingHandler, &m_pScene->getLightSetup(), m_pImgui);
-	m_pVolumetricLightRenderer->init();
-
 	//Set renderers to renderhandler
 	m_pRenderingHandler->setMeshRenderer(m_pMeshRenderer);
-	m_pRenderingHandler->setShadowMapRenderer(m_pShadowMapRenderer);
-	m_pRenderingHandler->setParticleEmitterHandler(m_pParticleEmitterHandler);
-	m_pRenderingHandler->setParticleRenderer(m_pParticleRenderer);
-	m_pRenderingHandler->setVolumetricLightRenderer(m_pVolumetricLightRenderer);
 	m_pRenderingHandler->setImguiRenderer(m_pImgui);
 
 	if (m_pContext->isRayTracingEnabled())
@@ -219,30 +186,7 @@ void Application::init()
 		{
 			m_pGunRoughness->initFromFile("assets/textures/gunRoughness.tga", ETextureFormat::FORMAT_R8G8B8A8_UNORM);
 		});
-
-	// Setup particles
-	m_pParticleTexture = m_pContext->createTexture2D();
-	if (!m_pParticleTexture->initFromFile("assets/textures/sun.png", ETextureFormat::FORMAT_R8G8B8A8_UNORM, true))
-	{
-		LOG("Failed to create particle texture");
-		SAFEDELETE(m_pParticleTexture);
-	}
-
-	ParticleEmitterInfo emitterInfo = {};
-	emitterInfo.position			= glm::vec3(6.0f, 0.1f, 0.0f);
-	emitterInfo.direction			= glm::normalize(glm::vec3(0.0f, 0.9f, 0.1f));
-	emitterInfo.particleSize		= glm::vec2(0.1f, 0.1f);
-	emitterInfo.initialSpeed		= 5.5f;
-	emitterInfo.particleDuration	= 3.0f;
-	emitterInfo.particlesPerSecond	= 200.0f;
-	emitterInfo.spread				= glm::quarter_pi<float>() / 1.3f;
-	emitterInfo.pTexture			= m_pParticleTexture;
-	m_pParticleEmitterHandler->createEmitter(emitterInfo);
-
-	// Second emitter
-	emitterInfo.position.x = -emitterInfo.position.x;
-	m_pParticleEmitterHandler->createEmitter(emitterInfo);
-
+	
 	//We can set the pointer to the material even if loading happens on another thread
 	m_GunMaterial.setAlbedo(glm::vec4(1.0f));
 	m_GunMaterial.setAmbientOcclusion(1.0f);
@@ -378,12 +322,7 @@ void Application::release()
 	SAFEDELETE(m_pGunMesh);
 	SAFEDELETE(m_pRenderingHandler);
 	SAFEDELETE(m_pMeshRenderer);
-	SAFEDELETE(m_pShadowMapRenderer);
 	SAFEDELETE(m_pRayTracingRenderer);
-	SAFEDELETE(m_pParticleRenderer);
-	SAFEDELETE(m_pParticleTexture);
-	SAFEDELETE(m_pParticleEmitterHandler);
-	SAFEDELETE(m_pVolumetricLightRenderer);
 	SAFEDELETE(m_pImgui);
 	SAFEDELETE(m_pScene);
 
@@ -583,8 +522,6 @@ void Application::update(double dt)
 		Input::setMousePosition(m_pWindow, glm::vec2(m_pWindow->getClientWidth() / 2.0f, m_pWindow->getClientHeight() / 2.0f));
 	}
 
-	m_pParticleEmitterHandler->update((float)dt);
-
 	static glm::mat4 rotation = glm::mat4(1.0f);
 	rotation = glm::rotate(rotation, glm::radians(30.0f * float(dt)), glm::vec3(0.0f, 1.0f, 0.0f));
 
@@ -619,140 +556,13 @@ void Application::renderUI(double dt)
 		}
 		ImGui::End();
 
-		// Particle control panel
-		ImGui::SetNextWindowSize(ImVec2(420, 210), ImGuiCond_FirstUseEver);
-		if (ImGui::Begin("Particles", NULL)) {
-			ImGui::Text("Toggle Computation Device");
-			const char* btnLabel = m_pParticleEmitterHandler->gpuComputed() ? "GPU" : "CPU";
-			if (ImGui::Button(btnLabel, ImVec2(40, 25))) {
-				m_pParticleEmitterHandler->toggleComputationDevice();
-			}
-
-			ImGui::Text("Collisions");
-			const char* btnLabelCollisions = m_pParticleEmitterHandler->collisionsEnabled() ? "On" : "Off";
-			if (ImGui::Button(btnLabelCollisions)) {
-				m_pParticleEmitterHandler->toggleCollisions();
-			}
-
-			std::vector<ParticleEmitter*> particleEmitters = m_pParticleEmitterHandler->getParticleEmitters();
-
-			// Emitter creation
-			if (ImGui::Button("New emitter")) {
-				m_CreatingEmitter = true;
-				ParticleEmitter* pLatestEmitter = particleEmitters.back();
-
-				m_NewEmitterInfo = {};
-				m_NewEmitterInfo.direction = pLatestEmitter->getDirection();
-				m_NewEmitterInfo.initialSpeed = pLatestEmitter->getInitialSpeed();
-				m_NewEmitterInfo.particleSize = pLatestEmitter->getParticleSize();
-				m_NewEmitterInfo.spread = pLatestEmitter->getSpread();
-				m_NewEmitterInfo.particlesPerSecond = pLatestEmitter->getParticlesPerSecond();
-				m_NewEmitterInfo.particleDuration = pLatestEmitter->getParticleDuration();
-			}
-
-			// Emitter selection
-			m_CurrentEmitterIdx = std::min(m_CurrentEmitterIdx, particleEmitters.size() - 1);
-			int emitterIdxInt = (int)m_CurrentEmitterIdx;
-
-			if (ImGui::SliderInt("Emitter selection", &emitterIdxInt, 0, int(particleEmitters.size() - 1))) {
-				m_CurrentEmitterIdx = (size_t)emitterIdxInt;
-			}
-
-			// Get current emitter data
-			ParticleEmitter* pEmitter = particleEmitters[m_CurrentEmitterIdx];
-			glm::vec3 emitterPos = pEmitter->getPosition();
-			glm::vec2 particleSize = pEmitter->getParticleSize();
-
-			glm::vec3 emitterDirection = pEmitter->getDirection();
-			float yaw = getYaw(emitterDirection);
-			float oldYaw = yaw;
-			float pitch = getPitch(emitterDirection);
-			float oldPitch = pitch;
-
-			float emitterSpeed = pEmitter->getInitialSpeed();
-			float spread = pEmitter->getSpread();
-
-			if (ImGui::SliderFloat3("Position", glm::value_ptr(emitterPos), -10.0f, 10.0f)) {
-				pEmitter->setPosition(emitterPos);
-			}
-			if (ImGui::SliderFloat("Yaw", &yaw, 0.01f - glm::pi<float>(), glm::pi<float>() - 0.01f)) {
-				applyYaw(emitterDirection, yaw - oldYaw);
-				pEmitter->setDirection(emitterDirection);
-			}
-			if (ImGui::SliderFloat("Pitch", &pitch, 0.01f - glm::half_pi<float>(), glm::half_pi<float>() - 0.01f)) {
-				applyPitch(emitterDirection, pitch - oldPitch);
-				pEmitter->setDirection(emitterDirection);
-			}
-			if (ImGui::SliderFloat3("Direction", glm::value_ptr(emitterDirection), -1.0f, 1.0f)) {
-				pEmitter->setDirection(glm::normalize(emitterDirection));
-			}
-			if (ImGui::SliderFloat2("Size", glm::value_ptr(particleSize), 0.0f, 1.0f)) {
-				pEmitter->setParticleSize(particleSize);
-			}
-			if (ImGui::SliderFloat("Speed", &emitterSpeed, 0.0f, 20.0f)) {
-				pEmitter->setInitialSpeed(emitterSpeed);
-			}
-			if (ImGui::SliderFloat("Spread", &spread, 0.0f, glm::pi<float>())) {
-				pEmitter->setSpread(spread);
-			}
-
-			ImGui::Text("Particles: %d", pEmitter->getParticleCount());
-		}
-		ImGui::End();
-
-		// Emitter creation window
-		if (m_CreatingEmitter) {
-			// Open a new window
-			ImGui::SetNextWindowSize(ImVec2(420, 210), ImGuiCond_FirstUseEver);
-			if (ImGui::Begin("Emitter Creation", NULL)) {
-				float yaw = getYaw(m_NewEmitterInfo.direction);
-				float oldYaw = yaw;
-				float pitch = getPitch(m_NewEmitterInfo.direction);
-				float oldPitch = pitch;
-
-				ImGui::SliderFloat3("Position", glm::value_ptr(m_NewEmitterInfo.position), -10.0f, 10.0f);
-				if (ImGui::SliderFloat("Yaw", &yaw, 0.01f - glm::pi<float>(), glm::pi<float>() - 0.01f)) {
-					applyYaw(m_NewEmitterInfo.direction, yaw - oldYaw);
-				}
-				if (ImGui::SliderFloat("Pitch", &pitch, 0.01f - glm::half_pi<float>(), glm::half_pi<float>() - 0.01f)) {
-					applyPitch(m_NewEmitterInfo.direction, pitch - oldPitch);
-				}
-				if (ImGui::SliderFloat3("Direction", glm::value_ptr(m_NewEmitterInfo.direction), -1.0f, 1.0f)) {
-					m_NewEmitterInfo.direction = glm::normalize(m_NewEmitterInfo.direction);
-				}
-				ImGui::SliderFloat2("Particle Size", glm::value_ptr(m_NewEmitterInfo.particleSize), 0.0f, 1.0f);
-				ImGui::SliderFloat("Speed", &m_NewEmitterInfo.initialSpeed, 0.0f, 20.0f);
-				ImGui::SliderFloat("Spread", &m_NewEmitterInfo.spread, 0.0f, glm::pi<float>());
-				ImGui::InputFloat("Particle duration", &m_NewEmitterInfo.particleDuration);
-				ImGui::InputFloat("Particles per second", &m_NewEmitterInfo.particlesPerSecond);
-				ImGui::Text("Emitted particles: %d", int(m_NewEmitterInfo.particlesPerSecond * m_NewEmitterInfo.particleDuration));
-
-				if (ImGui::Button("Create")) {
-					m_CreatingEmitter = false;
-					m_NewEmitterInfo.pTexture = m_pParticleTexture;
-
-					m_pParticleEmitterHandler->createEmitter(m_NewEmitterInfo);
-				}
-				if (ImGui::Button("Cancel")) {
-					m_CreatingEmitter = false;
-				}
-				ImGui::End();
-			}
-		}
-
 		// Draw profiler UI
 		ImGui::SetNextWindowSize(ImVec2(430, 450), ImGuiCond_FirstUseEver);
 		if (ImGui::Begin("Profiler", NULL))
 		{
-			//TODO: If the renderinghandler have all renderers/handlers, why are we calling their draw UI functions should this not be done by the renderinghandler
-			m_pParticleEmitterHandler->drawProfilerUI();
 			m_pRenderingHandler->drawProfilerUI();
 		}
 		ImGui::End();
-
-		if (m_pVolumetricLightRenderer) {
-			m_pVolumetricLightRenderer->renderUI();
-		}
 
 		if (m_pContext->isRayTracingEnabled())
 		{

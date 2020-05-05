@@ -2,7 +2,6 @@
 #include "Common/IGraphicsContext.h"
 #include "Common/IImgui.h"
 #include "Common/IRenderer.h"
-#include "Common/ParticleEmitterHandler.h"
 
 #include "Core/PointLight.h"
 #include "Core/TaskDispatcher.h"
@@ -21,27 +20,18 @@
 #include "RenderingHandlerVK.h"
 #include "RenderPassVK.h"
 #include "SceneVK.h"
-#include "ShadowMapRendererVK.h"
 #include "SkyboxRendererVK.h"
 #include "SwapChainVK.h"
 #include "TextureCubeVK.h"
 
-#include "Particles/ParticleEmitterHandlerVK.h"
-#include "Particles/ParticleRendererVK.h"
-
 #include "Ray Tracing/RayTracingRendererVK.h"
-
-#include "VolumetricLight/VolumetricLightRendererVK.h"
 
 #define MULTITHREADED 1
 
 RenderingHandlerVK::RenderingHandlerVK(GraphicsContextVK* pGraphicsContext)
 	:m_pGraphicsContext(pGraphicsContext),
 	m_pMeshRenderer(nullptr),
-	m_pShadowMapRenderer(nullptr),
 	m_pRayTracer(nullptr),
-	m_pVolumetricLightRenderer(nullptr),
-	m_pParticleRenderer(nullptr),
 	m_pImGuiRenderer(nullptr),
 	m_pSkyboxRenderer(nullptr),
 	m_pRadianceImage(nullptr),
@@ -265,7 +255,6 @@ void RenderingHandlerVK::render(IScene* pScene)
 	m_pMeshRenderer->setupFrame(m_ppGraphicsCommandBuffers[m_CurrentFrame]);
 #if MULTITHREADED
 	m_pMeshRenderer->beginFrame(pVulkanScene);
-	m_pShadowMapRenderer->beginFrame(pVulkanScene);
 
 	TaskDispatcher::execute([pVulkanScene, this]
 		{
@@ -274,10 +263,8 @@ void RenderingHandlerVK::render(IScene* pScene)
 			{
 				const GraphicsObjectVK& graphicsObject = graphicsObjects[i];
 				m_pMeshRenderer->submitMesh(graphicsObject.pMesh, graphicsObject.pMaterial, graphicsObject.MaterialParametersIndex, i);
-				m_pShadowMapRenderer->submitMesh(graphicsObject.pMesh, graphicsObject.pMaterial, i);
 			}
 			m_pMeshRenderer->endFrame(pVulkanScene);
-			m_pShadowMapRenderer->endFrame(pVulkanScene);
 		});
 	TaskDispatcher::execute([this]
 		{
@@ -330,24 +317,7 @@ void RenderingHandlerVK::render(IScene* pScene)
 	m_pImGuiRenderer->render(pSecondaryCommandBuffer, m_CurrentFrame);
 	pSecondaryCommandBuffer->end();
 #endif
-
-	if (m_pParticleRenderer)
-	{
-		m_pParticleRenderer->getProfiler()->reset(m_CurrentFrame, m_ppGraphicsCommandBuffers[m_CurrentFrame]);
-#if MULTITHREADED
-		m_pParticleRenderer->beginFrame(pVulkanScene);
-		TaskDispatcher::execute([pVulkanScene, this]
-			{
-				submitParticles();
-				m_pParticleRenderer->endFrame(pVulkanScene);
-			});
-#else
-		m_pParticleRenderer->beginFrame(pVulkanScene);
-		submitParticles();
-		m_pParticleRenderer->endFrame(pVulkanScene);
-#endif
-	}
-
+	
 	{
 		static bool firstFrame = true;
 
@@ -371,25 +341,6 @@ void RenderingHandlerVK::render(IScene* pScene)
 
 	m_ppGraphicsCommandBuffers[m_CurrentFrame]->executeSecondary(m_pMeshRenderer->getGeometryCommandBuffer());
 	m_ppGraphicsCommandBuffers[m_CurrentFrame]->endRenderPass();
-
-	if (lightsetup.hasDirectionalLight()) {
-		FrameBufferVK* pFrameBuffer = reinterpret_cast<FrameBufferVK*>(lightsetup.getDirectionalLight()->getFrameBuffer());
-		const VkViewport& viewport = m_pShadowMapRenderer->getViewport();
-
-		m_ppGraphicsCommandBuffers[m_CurrentFrame]->beginRenderPass(m_pShadowMapRenderPass, pFrameBuffer, (uint32_t)viewport.width, (uint32_t)viewport.height, &m_ClearDepth, 1, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-		m_ppGraphicsCommandBuffers[m_CurrentFrame]->executeSecondary(m_pShadowMapRenderer->getCommandBuffer(m_CurrentFrame));
-		m_ppGraphicsCommandBuffers[m_CurrentFrame]->endRenderPass();
-	}
-
-	if (m_pVolumetricLightRenderer) {
-		m_pVolumetricLightRenderer->beginFrame(pScene);
-
-		m_pVolumetricLightRenderer->updateBuffers();
-		m_pVolumetricLightRenderer->renderLightBuffer();
-		m_pVolumetricLightRenderer->applyLightBuffer(m_pBackBufferRenderPass, pBackbuffer);
-
-		m_pVolumetricLightRenderer->endFrame(pScene);
-	}
 
 	if (m_pRayTracer)
 	{
@@ -500,37 +451,12 @@ void RenderingHandlerVK::render(IScene* pScene)
 		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->begin(nullptr, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	}
 
-	if (m_pVolumetricLightRenderer) {
-		RenderPassVK* pLightBufferPass = m_pVolumetricLightRenderer->getLightBufferPass();
-		FrameBufferVK* pLightFrameBuffer = m_pVolumetricLightRenderer->getLightFrameBuffer();
-		const VkViewport& viewport = m_pVolumetricLightRenderer->getViewport();
-		VkClearValue clearValue = m_pVolumetricLightRenderer->getLightBufferClearColor();
-
-		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->beginRenderPass(pLightBufferPass, pLightFrameBuffer, (uint32_t)viewport.width, (uint32_t)viewport.height, &clearValue, 1, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->executeSecondary(m_pVolumetricLightRenderer->getCommandBufferBuildPass(m_CurrentFrame));
-		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->endRenderPass();
-	}
-
 	//TODO: Combine these into one renderpass
 
 	//Gather all renderer's data and finalize the frame
 	m_ppGraphicsCommandBuffers2[m_CurrentFrame]->beginRenderPass(m_pBackBufferRenderPass, pBackbuffer, (uint32_t)m_Viewport.width, (uint32_t)m_Viewport.height, nullptr, 0, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-
 	m_ppGraphicsCommandBuffers2[m_CurrentFrame]->executeSecondary(m_pMeshRenderer->getLightCommandBuffer());
-
-	if (m_pVolumetricLightRenderer) {
-		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->executeSecondary(m_pVolumetricLightRenderer->getCommandBufferApplyPass(m_CurrentFrame));
-	}
-
 	m_ppGraphicsCommandBuffers2[m_CurrentFrame]->endRenderPass();
-
-	//Render particles
-	if (m_pParticleRenderer)
-	{
-		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->beginRenderPass(m_pParticleRenderPass, pBackbufferWithDepth, (uint32_t)m_Viewport.width, (uint32_t)m_Viewport.height, nullptr, 0, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->executeSecondary(m_pParticleRenderer->getCommandBuffer(m_CurrentFrame));
-		m_ppGraphicsCommandBuffers2[m_CurrentFrame]->endRenderPass();
-	}
 
 	//Render UI
 	m_ppGraphicsCommandBuffers2[m_CurrentFrame]->beginRenderPass(m_pUIRenderPass, pBackbuffer, (uint32_t)m_Viewport.width, (uint32_t)m_Viewport.height, nullptr, 0, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
@@ -582,18 +508,6 @@ void RenderingHandlerVK::onWindowResize(uint32_t width, uint32_t height)
 	}
 
 	createBackBuffers();
-
-	if (m_pParticleEmitterHandler) {
-		m_pParticleEmitterHandler->onWindowResize();
-	}
-
-	if (m_pShadowMapRenderer) {
-		m_pShadowMapRenderer->onWindowResize(width, height);
-	}
-
-	if (m_pVolumetricLightRenderer) {
-		m_pVolumetricLightRenderer->onWindowResize(width, height);
-	}
 }
 
 void RenderingHandlerVK::onSceneUpdated(IScene* pScene)
@@ -645,22 +559,9 @@ void RenderingHandlerVK::drawProfilerUI()
 		m_pMeshRenderer->getLightProfiler()->drawResults();
 	}
 
-	if (m_pShadowMapRenderer) {
-		m_pShadowMapRenderer->getProfiler()->drawResults();
-	}
-
-	if (m_pParticleRenderer)
-	{
-		m_pParticleRenderer->getProfiler()->drawResults();
-	}
-
 	if (m_pRayTracer)
 	{
 		m_pRayTracer->getProfiler()->drawResults();
-	}
-
-	if (m_pVolumetricLightRenderer) {
-		m_pVolumetricLightRenderer->drawProfilerResults();
 	}
 }
 
@@ -694,19 +595,6 @@ void RenderingHandlerVK::setViewport(float width, float height, float minDepth, 
 	if (m_pMeshRenderer)
 	{
 		m_pMeshRenderer->setViewport(width, height, minDepth, maxDepth, topX, topY);
-	}
-
-	if (m_pParticleRenderer)
-	{
-		m_pParticleRenderer->setViewport(width, height, minDepth, maxDepth, topX, topY);
-	}
-
-	if (m_pShadowMapRenderer) {
-		m_pShadowMapRenderer->setViewport(width, height, minDepth, maxDepth, topX, topY);
-	}
-
-	if (m_pVolumetricLightRenderer) {
-		m_pVolumetricLightRenderer->setViewport(width, height, minDepth, maxDepth, topX, topY);
 	}
 }
 
@@ -1162,53 +1050,6 @@ void RenderingHandlerVK::updateBuffers(SceneVK* pScene, const Camera& camera, co
 		}
 		m_ppGraphicsCommandBuffers[m_CurrentFrame]->bufferMemoryBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 2, barriers);
 		m_ppComputeCommandBuffers[m_CurrentFrame]->bufferMemoryBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV, 2, &barriers[2]);
-	}
-
-	// Update particle buffers
-	if (m_pParticleEmitterHandler) {
-		m_pParticleEmitterHandler->updateRenderingBuffers(this);
-	}
-
-	if (m_pShadowMapRenderer) {
-		m_pShadowMapRenderer->updateBuffers(reinterpret_cast<SceneVK*>(m_pScene));
-	}
-}
-
-void RenderingHandlerVK::submitParticles()
-{
-	ParticleEmitterHandlerVK* pEmitterHandler = reinterpret_cast<ParticleEmitterHandlerVK*>(m_pParticleEmitterHandler);
-
-	// Transfer depth buffer and particle buffer ownerships between the compute and graphics queue
-	if (pEmitterHandler->gpuComputed()) {
-		m_ppGraphicsCommandBuffers[m_CurrentFrame]->releaseImageOwnership(
-			m_pGBuffer->getDepthImage(),
-			VK_ACCESS_MEMORY_READ_BIT,
-			m_pGraphicsContext->getDevice()->getQueueFamilyIndices().graphicsFamily.value(),
-			m_pGraphicsContext->getDevice()->getQueueFamilyIndices().computeFamily.value(),
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			VK_IMAGE_ASPECT_DEPTH_BIT);
-
-		for (ParticleEmitter* pEmitter : pEmitterHandler->getParticleEmitters()) {
-			// Release buffers from graphics after the geometry pass. This will allow the compute queue to update the particles
-			pEmitterHandler->releaseFromGraphics(reinterpret_cast<BufferVK*>(pEmitter->getPositionsBuffer()), m_ppGraphicsCommandBuffers[m_CurrentFrame]);
-
-			// Particle buffers will be acquired once the particles have been updated
-			pEmitterHandler->acquireForGraphics(reinterpret_cast<BufferVK*>(pEmitter->getPositionsBuffer()), m_ppGraphicsCommandBuffers[m_CurrentFrame]);
-		}
-
-		m_ppGraphicsCommandBuffers[m_CurrentFrame]->acquireImageOwnership(
-			m_pGBuffer->getDepthImage(),
-			VK_ACCESS_MEMORY_READ_BIT,
-			m_pGraphicsContext->getDevice()->getQueueFamilyIndices().computeFamily.value(),
-			m_pGraphicsContext->getDevice()->getQueueFamilyIndices().graphicsFamily.value(),
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			VK_IMAGE_ASPECT_DEPTH_BIT);
-	}
-
-	for (ParticleEmitter* pEmitter : pEmitterHandler->getParticleEmitters()) {
-		m_pParticleRenderer->submitParticles(pEmitter);
 	}
 }
 

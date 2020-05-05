@@ -1,13 +1,12 @@
 #pragma once
 #include "Camera.h"
 #include "Material.h"
-
 #include "Common/CommonEventHandler.h"
-#include "Common/ParticleEmitterHandler.h"
 
 #include <spline_library/splines/uniform_cr_spline.h>
 
 class IMesh;
+class IScene;
 class IImgui;
 class IWindow;
 class IRenderer;
@@ -79,10 +78,7 @@ private:
 	IGraphicsContext*	m_pContext;
 	RenderingHandler*	m_pRenderingHandler;
 	IRenderer*			m_pMeshRenderer;
-	IRenderer*			m_pShadowMapRenderer;
-	IRenderer*			m_pParticleRenderer;
 	IRenderer*			m_pRayTracingRenderer;
-	IRenderer* 			m_pVolumetricLightRenderer;
 	IImgui*				m_pImgui;
 	IInputHandler*		m_pInputHandler;
 
@@ -93,15 +89,8 @@ private:
 	ITexture2D* m_pGunNormal;
 	ITexture2D* m_pGunMetallic;
 	ITexture2D* m_pGunRoughness;
-	ITexture2D* m_pParticleTexture;
 
 	ITextureCube* m_pSkybox;
-
-	ParticleEmitterHandler* m_pParticleEmitterHandler;
-
-	// Resources for ImGui Particle window
-	size_t m_CurrentEmitterIdx;
-	ParticleEmitterInfo m_NewEmitterInfo;
 
 	LoopingUniformCRSpline<glm::vec3, float>* m_pCameraPositionSpline;
 	LoopingUniformCRSpline<glm::vec3, float>* m_pCameraDirectionSpline;
@@ -115,7 +104,6 @@ private:
 	bool m_UpdateCamera;
 	bool m_KeyInputEnabled;
 	bool m_CameraSplineEnabled;
-	bool m_CreatingEmitter;
 
 	static constexpr uint32_t SPHERE_COUNT_DIMENSION = 8;
 	static Application* s_pInstance;

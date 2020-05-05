@@ -1,6 +1,6 @@
 #include "ShaderBindingTableVK.h"
-
 #include "RayTracingPipelineVK.h"
+
 #include "Vulkan/DeviceVK.h"
 #include "Vulkan/PipelineVK.h"
 #include "Vulkan/BufferVK.h"

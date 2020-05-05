@@ -12,7 +12,7 @@ struct RayPayload
 
 struct ShadowRayPayload
 {
-	float Occlusion;
+	float Distance;
 };
 
 struct Vertex
@@ -195,12 +195,12 @@ void main()
 
 			vec3 lightVector 	= (lightPosition - hitPos);
 			vec3 lightDir 		= normalize(lightVector);
+			float lightDistance	= length(lightVector);
 
 			traceNV(u_TopLevelAS, rayFlags, cullMask, 1, 0, 1, shadowRaysOrigin, tmin, lightDir, tmax, 1);
 
-			if (shadowRayPayload.Occlusion < 0.1f)
+			if (shadowRayPayload.Distance >= lightDistance)
 			{
-				float lightDistance	= length(lightVector);
 				float attenuation 	= 1.0f / (lightDistance * lightDistance);
 
 				vec3 halfVector = normalize(viewDir + lightDir);

@@ -67,14 +67,14 @@ workspace "Vulkan-Project"
                 "C:/VulkanSDK/1.1.108.0/Lib",
                 "C:/VulkanSDK/1.1.130.0/Lib",
                 "D:/VulkanSDK/1.1.108.0/Lib",
-				"D:/VulkanSDK/1.1.130.0/Lib",
+				"D:/VulkanSDK/1.2.135.0/Lib",
 			}
 			sysincludedirs
 			{
                 "C:/VulkanSDK/1.1.108.0/Include",
                 "C:/VulkanSDK/1.1.130.0/Include",
                 "D:/VulkanSDK/1.1.108.0/Include",
-				"D:/VulkanSDK/1.1.130.0/Include",
+				"D:/VulkanSDK/1.2.135.0/Include",
 			}
 			
 			prebuildcommands

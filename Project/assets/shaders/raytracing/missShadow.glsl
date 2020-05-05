@@ -3,12 +3,12 @@
 
 struct ShadowRayPayload 
 {
-	float Occlusion;
+	float Distance;
 };
 
 layout(location = 1) rayPayloadInNV ShadowRayPayload shadowRayPayload;
 
 void main()
 {
-	shadowRayPayload.Occlusion = 0.0f;
+	shadowRayPayload.Distance = gl_RayTmaxNV;
 }

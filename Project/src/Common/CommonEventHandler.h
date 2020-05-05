@@ -6,7 +6,7 @@ class CommonEventHandler : public IEventHandler
 public:
 	CommonEventHandler()	= default;
 	~CommonEventHandler()	= default;
-
+	 
 	DECL_NO_COPY(CommonEventHandler);
 
 	virtual void onWindowClose() override { }

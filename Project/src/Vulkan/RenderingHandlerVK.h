@@ -19,14 +19,11 @@ class IRenderer;
 class IScene;
 class MeshRendererVK;
 class MeshVK;
-class ParticleRendererVK;
 class PipelineVK;
 class RayTracingRendererVK;
 class RenderPassVK;
 class SceneVK;
-class ShadowMapRendererVK;
 class SkyboxRendererVK;
-class VolumetricLightRendererVK;
 
 class RenderingHandlerVK : public RenderingHandler
 {
@@ -46,10 +43,7 @@ public:
 
     virtual void setImguiRenderer(IImgui* pImGui) override                                  { m_pImGuiRenderer = reinterpret_cast<ImguiVK*>(pImGui); }
     virtual void setMeshRenderer(IRenderer* pMeshRenderer) override                         { m_pMeshRenderer = reinterpret_cast<MeshRendererVK*>(pMeshRenderer); }
-    virtual void setShadowMapRenderer(IRenderer* pShadowMapRenderer) override               { m_pShadowMapRenderer = reinterpret_cast<ShadowMapRendererVK*>(pShadowMapRenderer); }
 	virtual void setRayTracer(IRenderer* pRayTracer) override				                { m_pRayTracer = reinterpret_cast<RayTracingRendererVK*>(pRayTracer); }
-    virtual void setVolumetricLightRenderer(IRenderer* pVolumetricLightRenderer) override   { m_pVolumetricLightRenderer = reinterpret_cast<VolumetricLightRendererVK*>(pVolumetricLightRenderer); }
-    virtual void setParticleRenderer(IRenderer* pParticleRenderer) override                 { m_pParticleRenderer = reinterpret_cast<ParticleRendererVK*>(pParticleRenderer); }
 
     virtual void setClearColor(float r, float g, float b) override;
     virtual void setClearColor(const glm::vec3& color) override;
@@ -90,8 +84,6 @@ private:
 
     void updateBuffers(SceneVK* pScene, const Camera& camera, const LightSetup& lightSetup);
 
-    void submitParticles();
-
 private:
     CameraBuffer m_CameraBuffer;
 
@@ -99,10 +91,7 @@ private:
 
     SkyboxRendererVK*       m_pSkyboxRenderer;
     MeshRendererVK*         m_pMeshRenderer;
-    ShadowMapRendererVK*         m_pShadowMapRenderer;
-    ParticleRendererVK*     m_pParticleRenderer;
     RayTracingRendererVK*   m_pRayTracer;
-    VolumetricLightRendererVK* m_pVolumetricLightRenderer;
     ImguiVK*                m_pImGuiRenderer;
 
     FrameBufferVK*  m_ppBackbuffers[MAX_FRAMES_IN_FLIGHT];

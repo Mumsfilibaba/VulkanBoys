@@ -21,11 +21,7 @@ public:
 
 	virtual RenderingHandler* createRenderingHandler() override;
 	virtual IRenderer* createMeshRenderer(RenderingHandler* pRenderingHandler) override;
-	virtual IRenderer* createShadowMapRenderer(RenderingHandler* pRenderingHandler) override;
-	virtual IRenderer* createParticleRenderer(RenderingHandler* pRenderingHandler) override;
 	virtual IRenderer* createRayTracingRenderer(RenderingHandler* pRenderingHandler) override;
-	virtual IRenderer* createVolumetricLightRenderer(RenderingHandler* pRenderingHandler, LightSetup* pLightSetup, IImgui* pImguiRenderer) override;
-	virtual ParticleEmitterHandler* createParticleEmitterHandler() override;
 	virtual IImgui* createImgui() override;
 
 	virtual IScene* createScene(const RenderingHandler* pRenderingHandler) override;

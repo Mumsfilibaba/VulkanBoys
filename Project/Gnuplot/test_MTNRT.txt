@@ -1,0 +1,2 @@
+Avg. FT	Worst FT	Best FT	Frame Count
+1.68796	14.1275	0.2183	226601
